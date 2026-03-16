@@ -2,41 +2,83 @@
 
 A complete system for news classification and analysis, featuring a FastAPI backend and a Streamlit dashboard.
 
+---
+
 ## 🏗️ Project Structure
 
 - `backend/`: FastAPI service for text cleaning and news classification.
 - `frontend/`: Streamlit dashboard for visualizing news data and interacting with the backend.
 
-## 🛠️ Prerequisites
+---
 
-- [Python](https://www.python.org/) 3.10+
-- [uv](https://github.com/astral-sh/uv) (Highly recommended for dependency management)
+## 🔑 API Key Setup (Required)
 
-## 🚀 Quick Start
+To use this project, you need a News API Key.
+1. Get a free key from [NewsAPI.org](https://newsapi.org/).
+2. Navigate to the `backend/` folder.
+3. Rename the `.env.example` file to `.env`:
+   ```bash
+   cp .env.example .env
+   ```
+4. Open `.env` and paste your key:
+   ```env
+   NEWS_API_KEY=your_actual_key_here
+   ```
 
-### 1. Set up the Backend
+---
+
+## 🚀 Installation & Setup
+
+### Option A: Using `uv` (Recommended - Faster & Easier)
+
+If you don't have `uv` installed, run this first:
+```bash
+# Windows
+powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+
+# macOS/Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+**1. Start the Backend:**
 ```bash
 cd backend
 uv sync
-# Copy .env.example to .env and add your News API Key
-cp .env.example .env
-# Run the server
 uv run python main.py
 ```
 
-### 2. Set up the Frontend
+**2. Start the Frontend (New Terminal):**
 ```bash
 cd frontend
 uv sync
-# Run the dashboard
 uv run streamlit run app.py
 ```
 
-## 🔑 Environment Variables
+---
 
-The backend requires a `NEWS_API_KEY`. Create a `.env` file in the `backend/` directory based on `backend/.env.example`.
+### Option B: Using Standard `pip` (The Traditional Way)
+
+**1. Start the Backend:**
+```bash
+cd backend
+python -m venv .venv
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+python main.py
+```
+
+**2. Start the Frontend (New Terminal):**
+```bash
+cd frontend
+python -m venv .venv
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+streamlit run app.py
+```
+
+---
 
 ## 📦 Core Dependencies
 
-- **Backend**: FastAPI, uvicorn, scikit-learn, nltk, newspaper3k.
-- **Frontend**: Streamlit, pandas, plotly, fpdf2.
+- **Backend**: FastAPI, uvicorn, scikit-learn, joblib, nltk, newspaper3k.
+- **Frontend**: Streamlit, pandas, plotly, matplotlib, fpdf2.
