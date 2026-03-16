@@ -1,0 +1,12 @@
+# Direct dependencies for the News Intelligence Frontend
+streamlit>=1.53.1
+pandas>=2.3.3
+joblib>=1.5.3
+requests>=2.32.5
+fpdf2>=2.8.5
+plotly>=6.5.2
+matplotlib>=3.10.8
+trafilatura>=2.0.0
+python-dotenv>=1.2.1
+openpyxl>=3.1.5
+numpy>=2.4.1
