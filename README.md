@@ -11,9 +11,9 @@ A complete system for news classification and analysis, featuring a FastAPI back
 
 ---
 
-## 🔑 API Key Setup (Required)
+## 🔑 API Key (Optional)
 
-To use this project, you need a News API Key.
+The core classification features work **without** an API key. However, if you want to use the **Live News Feed** feature:
 1. Get a free key from [NewsAPI.org](https://newsapi.org/).
 2. Navigate to the `backend/` folder.
 3. Rename the `.env.example` file to `.env`:
@@ -62,6 +62,7 @@ uv run streamlit run app.py
 ```bash
 cd backend
 python -m venv .venv
+# Activate virtual environment
 source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 python main.py
@@ -71,6 +72,7 @@ python main.py
 ```bash
 cd frontend
 python -m venv .venv
+# Activate virtual environment
 source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 streamlit run app.py
