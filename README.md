@@ -25,7 +25,20 @@ The core classification logic works offline. However, if you want to use the **L
    ```
 4. Edit `.env` and paste your key: `NEWS_API_KEY=your_key_here`
 
-### 3. Start the Backend (FastAPI)
+### 3. Install `uv` (Optional but Recommended)
+If you don't have `uv` installed, run the appropriate command for your OS:
+
+**Windows (PowerShell):**
+```powershell
+powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+**macOS/Linux:**
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+### 4. Start the Backend (FastAPI)
 You can choose either **Option A (Faster)** or **Option B (Standard)**.
 
 #### Option A: Using `uv` (Recommended)
@@ -45,7 +58,7 @@ python main.py
 ```
 *The backend will be live at http://localhost:8000*
 
-### 4. Start the Frontend (Streamlit)
+### 5. Start the Frontend (Streamlit)
 Open a **new terminal** window, navigate to the project root, and then:
 
 #### Option A: Using `uv` (Recommended)
