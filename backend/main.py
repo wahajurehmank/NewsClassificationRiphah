@@ -11,60 +11,15 @@ import nltk
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
 from nltk.tokenize import word_tokenize
-import sqlite3
 import feedparser
 from newspaper import Article
 from concurrent.futures import ThreadPoolExecutor
-import time
 from urllib.parse import quote_plus
 
 # --- Configuration ---
 load_dotenv()
 NEWS_API_KEY = os.getenv("NEWS_API_KEY", "test")
 NEWS_API_BASE_URL = "https://newsapi.org/v2/everything"
-DB_PATH = os.path.join(os.path.dirname(__file__), "news_vault.db")
-
-# --- Database Setup ---
-def init_db():
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS articles (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            title TEXT,
-            source_url TEXT UNIQUE,
-            published_date TEXT,
-            full_text TEXT,
-            category TEXT,
-            confidence REAL,
-            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-    conn.commit()
-    conn.close()
-
-def save_article_to_db(article_data):
-    try:
-        conn = sqlite3.connect(DB_PATH)
-        cursor = conn.cursor()
-        cursor.execute('''
-            INSERT OR IGNORE INTO articles (title, source_url, published_date, full_text, category, confidence)
-            VALUES (?, ?, ?, ?, ?, ?)
-        ''', (
-            article_data.get('headline'),
-            article_data.get('url'),
-            article_data.get('publication_date'),
-            article_data.get('full_text', ''),
-            article_data.get('category', 'General'),
-            article_data.get('confidence', 0.0)
-        ))
-        conn.commit()
-        conn.close()
-    except Exception as e:
-        print(f"DB Error: {e}")
-
-init_db()
-
 # --- Initialization ---
 app = FastAPI(
     title="News Classification API",
@@ -305,7 +260,6 @@ async def fetch_live_news(query: str = "latest", page_size: int = 10, api_source
                 category, confidence = "General", 0.0
             
             complete_art = {**art, "category": category, "confidence": confidence}
-            save_article_to_db(complete_art)
             classified_articles.append(NewsArticle(**complete_art))
             
         return LiveNewsOutput(
