@@ -242,7 +242,7 @@ async def fetch_live_news(query: str = "latest", page_size: int = 10, api_source
         else:
             raise HTTPException(status_code=400, detail="Invalid api_source.")
 
-        # Classify and Save to DB
+        # Classify articles
         classified_articles = []
         for art in articles:
             # Predict

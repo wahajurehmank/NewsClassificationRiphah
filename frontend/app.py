@@ -1,11 +1,8 @@
 import streamlit as st
-import joblib
 import pandas as pd
 import numpy as np
-import re
 import os
 import requests
-import time
 from datetime import datetime
 from dotenv import load_dotenv
 from fpdf import FPDF
@@ -128,9 +125,6 @@ TRANSLATIONS = {
         'footer_sub': "This tool uses AI to predict news categories. Results are automated and may not always be 100% accurate.",
         'error_prefix': "Error",
         'error_sys_offline': "System Core Offline",
-        'error_engine_missing': "The classification engine was not detected.",
-        'error_missing_file': "Missing File: news_classifier_model.joblib",
-        'error_upload_joblib': "Please upload your **.joblib** file to continue.",
         'categories': {
             'Crime': 'Crime', 'Culture': 'Culture', 'Education': 'Education', 'Family': 'Family',
             'Global News': 'Global News', 'Lifestyle': 'Lifestyle', 'Science & Tech': 'Science & Tech',
@@ -232,9 +226,6 @@ TRANSLATIONS = {
         'footer_sub': "یہ ٹول خبروں کے زمرے کی پیش گوئی کرنے کے لیے اے آئی کا استعمال کرتا ہے۔ نتائج خودکار ہیں اور شاید ہمیشہ 100% درست نہ ہوں۔",
         'error_prefix': "خرابی",
         'error_sys_offline': "سسٹم کور آف لائن ہے",
-        'error_engine_missing': "درجہ بندی انجن نہیں ملا۔",
-        'error_missing_file': "لاپتہ فائل: news_classifier_model.joblib",
-        'error_upload_joblib': "جاری رکھنے کے لیے براہ کرم اپنی **.joblib** فائل اپ لوڈ کریں۔",
         'categories': {
             'Crime': 'جرم', 'Culture': 'ثقافت', 'Education': 'تعلیم', 'Family': 'خاندان',
             'Global News': 'عالمی خبریں', 'Lifestyle': 'طرز زندگی', 'Science & Tech': 'سائنس اور ٹیکنالوجی',
