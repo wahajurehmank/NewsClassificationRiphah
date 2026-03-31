@@ -12,6 +12,9 @@ try:
 except ImportError:
     trafilatura = None
 
+from pdf_reports import NewsReportGenerator
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
 # --- Shared Constants Injection ---
 import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'backend'))
@@ -20,219 +23,18 @@ try:
         MAPPING, ICONS, CATEGORY_THEMES, MASTER_CATEGORY_MAPPING, 
         STAKEHOLDER_INSIGHTS, FAMOUS_SOURCES_UI, STAKEHOLDER_INSIGHTS_UR
     )
+    from translations import TRANSLATIONS
 except ImportError:
-    # Fallback if constants.py is missing (should not happen in this task)
+    # Fallback to avoid complete crash if constants are missing
     MAPPING, ICONS, CATEGORY_THEMES = {}, {}, {}
     MASTER_CATEGORY_MAPPING, STAKEHOLDER_INSIGHTS = {}, {}
     FAMOUS_SOURCES_UI, STAKEHOLDER_INSIGHTS_UR = {}, {}
+    TRANSLATIONS = {'en': {'categories': {}}, 'ur': {'categories': {}}}
 
-# --- Translation System ---
-TRANSLATIONS = {
-    'en': {
-        'side_title': "🧠 Smart News Classifier",
-        'nav_label': "NAVIGATION",
-        'nav_options': ["🔍 Classify News", "❓ About & FAQ"],
-        'status_label': "STATUS",
-        'ai_ready': "✅ AI Engine: Ready",
-        'sys_online': "🚀 All systems online",
-        'built_for': "v0.3 • Built for everyone",
-        'main_title': "Smart News Classifier",
-        'main_sub': "Paste any news headline and our AI will tell you what category it belongs to — Sports, Tech, Crime, and more.",
-        'tabs': ["🎯 Try It Out", "📦 Upload a File", "📡 Live News Feed"],
-        'paste_title': "✍️ Paste Your News Article",
-        'headline': "Headline",
-        'headline_placeholder': "e.g. Tesla announces new self-driving update",
-        'desc': "Description (optional)",
-        'desc_placeholder': "Add more details for a better prediction...",
-        'analyze_btn': "🔍 Classify This",
-        'ai_confidence': "📊 AI Confidence",
-        'radar_info': "Paste a headline and click **Classify This** to see results here.",
-        'empty_warning': "Please enter a headline or description first.",
-        'analyzing': "🧠 Our AI is reading your article...",
-        'highly_confident': "Highly Confident",
-        'likely_match': "Likely Match",
-        'possible_match': "Possible Match",
-        'confidence_err': "Confidence breakdown not available for this prediction.",
-        'article_about': "YOUR ARTICLE IS ABOUT",
-        'more_context': "### 📖 More Context",
-        'fun_fact': "💡 Fun Fact",
-        'why_ai': "🧪 Why the AI chose this?",
-        'bulk_title': "### 📂 Classify Multiple Articles at Once",
-        'bulk_sub': "Have a spreadsheet full of news? Upload it here and our AI will categorize every article automatically.",
-        'upload_label': "Upload CSV/Excel",
-        'upload_info': "Drag and drop your **.csv** or **.xlsx** file above to get started.",
-        'upload_sub': "Your file should have at least two columns — one for headlines and one for descriptions.",
-        'col_err': "⚠️ High Signal column (Headline/Title) not automatically detected. Please select it manually below.",
-        'verify_cols': "📝 Verify Column Detection",
-        'col_h': "Column for Headlines",
-        'col_d': "Column for Descriptions",
-        'classify_all': "🚀 Classify All Articles",
-        'processing_bulk': "🧠 Reading and classifying your articles... this may take a moment.",
-        'results_title': "### 📈 Your Results",
-        'metric_classified': "Articles Classified",
-        'metric_common': "Most Common Topic",
-        'metric_topics': "Topics Found",
-        'interesting_discoveries': "### 💡 Interesting Discoveries",
-        'discovery_msg': "The most dominant topic in your file is **{}**!",
-        'what_is_this': "❓ What is this?",
-        'explore_data': "### 📝 Explore Your Processed Data",
-        'export_work': "##### 📥 Export Your Processed Work",
-        'btn_pdf': "📄 Download Summary Report (PDF)",
-        'btn_csv': "📊 Download Classified Data (CSV)",
-        'filter_report_cat': "Filter Report by Category",
-        'all_cats': "All Categories",
-        'include_full_text': "Deep Dive: Fetch Full Article Content (Requires URL)",
-        'btn_deep_pdf': "📄 Download Deep Dive Report (PDF)",
-        'fetching_articles': "🔍 Fetching full article contents... This may take a moment.",
-        'scraping_err': "⚠️ Error fetching content for: {}",
-        'no_url_warn': "⚠️ No URL column detected in CSV. Deep Dive is only available if a URL column exists.",
-        'live_title': "Live News Feed",
-        'live_sub': "Search for any topic and see the latest news articles, automatically categorized by our AI.",
-        'live_input': "What news are you looking for?",
-        'live_placeholder': "e.g. AI, Climate, Sports...",
-        'adv_settings': "⚙️ Advanced Signal Settings",
-        'news_provider': "News Source",
-        'how_many': "How many stories?",
-        'all_cats': "All Categories",
-        'google_news': "Google News (RSS)",
-        'show_news': "Show me the news",
-        'filter_topic': "##### 🎯 Filter by Topic",
-        'filter_sub': "Only show me articles about... (leave empty to see everything)",
-        'filter_help': "Pick the topics you care about. We'll filter the rest out.",
-        'fetching_msg': "🔍 Fetching the latest news from {}...",
-        'recommended_msg': "#### 🎯 {} Recommended for You (Filtered from {})",
-        'latest_msg': "#### 📰 Showing {} Latest Articles",
-        'no_matches': "😕 None of the fetched articles match your selected topics. Try removing some filters or searching for something different.",
-        'live_err': "⚠️ Could not load any news. Please make sure your {} API key is set up correctly in the settings.",
-        'about_title': "About This Tool",
-        'about_sub': "Everything you need to know about our Smart News Classifier.",
-        'about_q1': "### ❓ What is this?",
-        'about_a1': "This is an AI-powered tool that reads news headlines and automatically decides which category they belong to. It's designed to help you organize large amounts of news data or just explore what's happening in the world today.",
-        'about_q2': "### 🎯 How accurate is it?",
-        'about_a2': "Our AI (a Linear Support Vector Machine) is roughly **71% accurate**. While it's very good at spotting obvious patterns, it can sometimes get confused by clever headlines or news that fits into multiple categories.",
-        'about_q3': "### 📂 Can I use my own files?",
-        'about_a3': "Yes! In the **'Upload a File'** tab, you can drag in any Excel or CSV file. The tool will automatically find your headlines, categorize them, and give you a beautiful report to download.",
-        'about_q4': "### 🌍 Where does live news come from?",
-        'about_a4': "We connect to Google News RSS and NewsAPI to bring you real-time stories. You can search for anything from 'Global Warming' to 'Cricket' and our AI will filter the results based on your interests.",
-        'about_test': "### 🔬 Test the AI Yourself",
-        'about_test_sub': "Type any sentence below and watch how the AI cleans it up to understand the meaning.",
-        'about_test_input': "Try typing a sentence",
-        'about_test_val': "The S&P 500 reached an ALL-TIME high! #Economy #2026",
-        'typed_label': "WHAT YOU TYPED",
-        'ai_view': "HOW THE AI SEES IT",
-        'ai_scrub_info': "The AI removes noise like symbols and numbers to focus on the keywords.",
-        'footer_main': "Smart News Classifier • Built with Streamlit & Machine Learning",
-        'footer_sub': "This tool uses AI to predict news categories. Results are automated and may not always be 100% accurate.",
-        'error_prefix': "Error",
-        'error_sys_offline': "System Core Offline",
-        'categories': {
-            'Crime': 'Crime', 'Culture': 'Culture', 'Education': 'Education', 'Family': 'Family',
-            'Global News': 'Global News', 'Lifestyle': 'Lifestyle', 'Science & Tech': 'Science & Tech',
-            'Society': 'Society', 'Sports': 'Sports', 'General': 'General', 'Insufficient Data': 'Insufficient Data'
-        }
-    },
-    'ur': {
-        'side_title': "🧠 سمارٹ نیوز کلاسیفائر",
-        'nav_label': "نیویگیشن",
-        'nav_options': ["🔍 خبروں کی درجہ بندی", "❓ بارے میں اور عمومی سوالات"],
-        'status_label': "حالت",
-        'ai_ready': "✅ اے آئی انجن: تیار ہے",
-        'sys_online': "🚀 تمام سسٹم آن لائن ہیں",
-        'built_for': "v0.3 • سب کے لیے بنایا گیا",
-        'main_title': "سمارٹ نیوز کلاسیفائر",
-        'main_sub': "نیوز کی کوئی بھی سرخی پیسٹ کریں اور ہماری اے آئی آپ کو بتائے گی کہ یہ کس زمرے سے تعلق رکھتی ہے — کھیل، ٹیک، جرم، اور بہت کچھ۔",
-        'tabs': ["🎯 اسے آزمائیں", "📦 فائل اپ لوڈ کریں", "📡 لائیو نیوز فیڈ"],
-        'paste_title': "✍️ اپنا نیوز آرٹیکل پیسٹ کریں",
-        'headline': "سرخی",
-        'headline_placeholder': "مثال کے طور پر: ٹیسلا نے خود سے چلنے والی نئی اپ ڈیٹ کا اعلان کیا",
-        'desc': "تفصیل (اختیاری)",
-        'desc_placeholder': "بہتر پیش گوئی کے لیے مزید تفصیلات شامل کریں...",
-        'analyze_btn': "🔍 اس کی درجہ بندی کریں",
-        'ai_confidence': "📊 اے آئی کا اعتماد",
-        'radar_info': "سرخی پیسٹ کریں اور نتائج دیکھنے کے لیے 'اس کی درجہ بندی کریں' پر کلک کریں۔",
-        'empty_warning': "براہ کرم پہلے سرخی یا تفصیل درج کریں۔",
-        'analyzing': "🧠 ہماری اے آئی آپ کا مضمون پڑھ رہی ہے...",
-        'highly_confident': "انتہائی پراعتماد",
-        'likely_match': "ممکنہ میچ",
-        'possible_match': "شاید میچ",
-        'confidence_err': "اس پیش گوئی کے لیے اعتماد کی تفصیل دستیاب نہیں ہے۔",
-        'article_about': "آپ کا مضمون اس بارے میں ہے",
-        'more_context': "### 📖 مزید سیاق و سباق",
-        'fun_fact': "💡 دلچسپ حقیقت",
-        'why_ai': "🧪 اے آئی نے اس کا انتخاب کیوں کیا؟",
-        'bulk_title': "### 📂 ایک ساتھ متعدد مضامین کی درجہ بندی کریں",
-        'bulk_sub': "خبروں سے بھری اسپریڈ شیٹ ہے؟ اسے یہاں اپ لوڈ کریں اور ہمارا اے آئی ہر مضمون کو خود بخود زمرہ بندی کرے گا۔",
-        'upload_label': "CSV/Excel اپ لوڈ کریں",
-        'upload_info': "شروع کرنے کے لیے اپنی **.csv** یا **.xlsx** فائل اوپر ڈراپ کریں۔",
-        'upload_sub': "آپ کی فائل میں کم از کم دو کالم ہونے چاہئیں — ایک سرخیوں کے لیے اور ایک تفصیل کے لیے۔",
-        'col_err': "⚠️ ہائی سگنل کالم (سرخی/عنوان) خود بخود نہیں ملا۔ براہ کرم نیچے اسے دستی طور پر منتخب کریں۔",
-        'verify_cols': "📝 کالم کی شناخت کی تصدیق کریں",
-        'col_h': "سرخیوں کے لیے کالم",
-        'col_d': "تفصیل کے لیے کالم",
-        'classify_all': "🚀 تمام مضامین کی درجہ بندی کریں",
-        'processing_bulk': "🧠 آپ کے مضامین کو پڑھا اور درجہ بندی کیا جا رہا ہے... اس میں تھوڑی دیر لگ سکتی ہے۔",
-        'results_title': "### 📈 آپ کے نتائج",
-        'metric_classified': "مضامین کی درجہ بندی کی گئی",
-        'metric_common': "سب سے عام موضوع",
-        'metric_topics': "ملنے والے موضوعات",
-        'interesting_discoveries': "### 💡 دلچسپ دریافتیں",
-        'discovery_msg': "آپ کی فائل میں سب سے زیادہ نمایاں موضوع **{}** ہے!",
-        'what_is_this': "❓ یہ کیا ہے؟",
-        'explore_data': "### 📝 اپنا پراسیس شدہ ڈیٹا دیکھیں",
-        'export_work': "##### 📥 اپنا کام ایکسپورٹ کریں",
-        'btn_pdf': "📄 خلاصہ رپورٹ ڈاؤن لوڈ کریں (PDF)",
-        'btn_csv': "📊 درجہ بندی شدہ ڈیٹا ڈاؤن لوڈ کریں (CSV)",
-        'filter_report_cat': "رپورٹ کو زمرے کے لحاظ سے فلٹر کریں",
-        'all_cats': "تمام زمرے",
-        'include_full_text': "ڈیپ ڈائیو: مضمون کا مکمل مواد حاصل کریں (URL درکار ہے)",
-        'btn_deep_pdf': "📄 ڈیپ ڈائیو رپورٹ ڈاؤن لوڈ کریں (PDF)",
-        'fetching_articles': "🔍 مضمون کا مکمل مواد حاصل کیا جا رہا ہے... اس میں تھوڑی دیر لگ سکتی ہے۔",
-        'scraping_err': "⚠️ مواد حاصل کرنے میں خرابی: {}",
-        'no_url_warn': "⚠️ CSV میں کوئی URL کالم نہیں ملا۔ ڈیپ ڈائیو صرف تب دستیاب ہے جب URL کالم موجود ہو۔",
-        'live_title': "لائیو نیوز فیڈ",
-        'live_sub': "کسی بھی موضوع کو تلاش کریں اور تازہ ترین خبریں دیکھیں، جو خود بخود ہمارے اے آئی کے ذریعہ درجہ بندی کی گئی ہیں۔",
-        'live_input': "آپ کون سی خبریں تلاش کر رہے ہیں؟",
-        'live_placeholder': "مثال کے طور پر: اے آئی، موسمیاتی تبدیلی، کھیل...",
-        'adv_settings': "⚙️ ایڈوانس سیٹنگز",
-        'news_provider': "نیوز فراہم کنندہ",
-        'how_many': "کتنی کہانیاں؟",
-        'show_news': "مجھے خبریں دکھائیں",
-        'filter_topic': "##### 🎯 موضوع کے لحاظ سے فلٹر کریں",
-        'filter_sub': "صرف ان کے بارے میں مضامین دکھائیں... (سب کچھ دیکھنے کے لیے اسے خالی چھوڑ دیں)",
-        'filter_help': "وہ موضوعات منتخب کریں جن میں آپ کی دلچسپی ہے۔ ہم باقی کو فلٹر کر دیں گے۔",
-        'fetching_msg': "🔍 {} سے تازہ ترین خبریں حاصل کی جا رہی ہیں...",
-        'recommended_msg': "#### 🎯 {} آپ کے لیے تجویز کردہ (کل {} میں سے)",
-        'latest_msg': "#### 📰 {} تازہ ترین مضامین دکھائے جا رہے ہیں",
-        'no_matches': "😕 حاصل کردہ مضامین میں سے کوئی بھی آپ کے منتخب کردہ موضوعات سے مطابقت نہیں رکھتا۔ کچھ فلٹرز ہٹانے یا کچھ مختلف تلاش کرنے کی کوشش کریں۔",
-        'live_err': "⚠️ کوئی خبر لوڈ نہیں ہو سکی۔ براہ کرم یقینی بنائیں کہ آپ کی {} API کلید درست طریقے سے سیٹ کی گئی ہے۔",
-        'about_title': "اس ٹول کے بارے میں",
-        'about_sub': "ہمارے سمارٹ نیوز کلاسیفائر کے بارے میں سب کچھ جو آپ کو جاننے کی ضرورت ہے۔",
-        'about_q1': "### ❓ یہ کیا ہے؟",
-        'about_a1': "یہ ایک اے آئی سے چلنے والا ٹول ہے جو خبروں کی سرخیوں کو پڑھتا ہے اور خود بخود فیصلہ کرتا ہے کہ وہ کس زمرے سے تعلق رکھتی ہیں۔ اسے آپ کو خبروں کے بڑے ڈیٹا کو ترتیب دینے یا آج کی دنیا میں کیا ہو رہا ہے اسے دریافت کرنے میں مدد کے لیے ڈیزائن کیا گیا ہے۔",
-        'about_q2': "### 🎯 یہ کتنا درست ہے؟",
-        'about_a2': "ہمارا اے آئی (ایک لکیری سپورٹ ویکٹر مشین) تقریباً **71% درست** ہے۔ اگرچہ یہ واضح نمونوں کو تلاش کرنے میں بہت اچھا ہے، لیکن یہ کبھی کبھی دلچسپ سرخیوں یا ایسی خبروں سے الجھ سکتا ہے جو ایک سے زیادہ زمروں میں فٹ بیٹھتی ہیں۔",
-        'about_q3': "### 📂 کیا میں اپنی فائلیں استعمال کر سکتا ہوں؟",
-        'about_a3': "جی ہاں! 'فائل اپ لوڈ کریں' ٹیب میں، آپ کسی بھی ایکسل یا CSV فائل کو لا سکتے ہیں۔ ٹول خود بخود آپ کی سرخیاں تلاش کرے گا، انہیں درجہ بندی کرے گا، اور آپ کو ڈاؤن لوڈ کرنے کے لیے ایک خوبصورت رپورٹ دے گا۔",
-        'about_q4': "### 🌍 لائیو خبریں کہاں سے آتی ہیں؟",
-        'about_a4': "ہم تازہ ترین خبریں لانے کے لیے گوگل نیوز آر ایس ایس (Google News RSS) اور نیوز اے پی آئی (NewsAPI) کا استعمال کرتے ہیں۔ آپ 'گلوبل وارمنگ' سے لے کر 'کرکٹ' تک کسی بھی چیز کو تلاش کر سکتے ہیں اور ہمارا اے آئی آپ کی دلچسپیوں کی بنیاد پر نتائج کو فلٹر کرے گا۔",
-        'about_test': "### 🔬 اے آئی کو خود آزمائیں",
-        'about_test_sub': "نیچے کوئی بھی جملہ ٹائپ کریں اور دیکھیں کہ اے آئی معنی سمجھنے کے لیے اسے کیسے صاف کرتا ہے۔",
-        'about_test_input': "جملہ ٹائپ کرنے کی کوشش کریں",
-        'about_test_val': "اسٹاک مارکیٹ میں آج زبردست تیزی دیکھی گئی! #معیشت #2026",
-        'typed_label': "جو آپ نے ٹائپ کیا",
-        'ai_view': "اے آئی اسے کیسے دیکھتا ہے",
-        'ai_scrub_info': "اے آئی کی ورڈز پر توجہ مرکوز کرنے کے لیے نشانات اور نمبرز جیسے شور کو ہٹاتا ہے۔",
-        'footer_main': "سمارٹ نیوز کلاسیفائر • اسٹریم لٹ اور مشین لرننگ کے ساتھ بنایا گیا",
-        'footer_sub': "یہ ٹول خبروں کے زمرے کی پیش گوئی کرنے کے لیے اے آئی کا استعمال کرتا ہے۔ نتائج خودکار ہیں اور شاید ہمیشہ 100% درست نہ ہوں۔",
-        'error_prefix': "خرابی",
-        'error_sys_offline': "سسٹم کور آف لائن ہے",
-        'categories': {
-            'Crime': 'جرم', 'Culture': 'ثقافت', 'Education': 'تعلیم', 'Family': 'خاندان',
-            'Global News': 'عالمی خبریں', 'Lifestyle': 'طرز زندگی', 'Science & Tech': 'سائنس اور ٹیکنالوجی',
-            'Society': 'معاشرہ', 'Sports': 'کھیل', 'General': 'عام', 'Insufficient Data': 'ناکافی ڈیٹا'
-        }
-    }
-}
+# --- Default Language Code ---
+L_CODE = 'en'
+
+# --- Translation System Managed via Backend/Translations.py ---
 
 # --- Translations System ---
 
@@ -261,6 +63,38 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
+
+def is_quality_content(text):
+    """
+    Ultra-strict heuristic to prune out symbol-heavy, sparse, or junk content.
+    """
+    if not text: return False
+    text = text.strip()
+    
+    # 1. Clean characters check (ignoring whitespace)
+    actual_chars = "".join(text.split())
+    if len(actual_chars) < 400: return False
+    
+    # 2. Real Word Check
+    # We define 'real words' as strings of 3+ letters
+    words = [w for w in text.split() if len(w) >= 3 and any(c.isalpha() for c in w)]
+    if len(words) < 40: return False
+    
+    # 3. Average Word Length (Real articles have average 4.5 - 8 chars per word)
+    avg_len = sum(len(w) for w in words) / len(words)
+    if avg_len < 4.5 or avg_len > 15: return False
+    
+    # 4. Symbol & Digit Density
+    letters = sum(c.isalpha() for c in actual_chars)
+    digits = sum(c.isdigit() for c in actual_chars)
+    total_chars = len(actual_chars)
+    
+    # Financial tables and date-heavy noise usually have letters < 80%
+    if letters < (total_chars * 0.85): return False
+    # If digits are more than 8%, it's likely a list of prices or dates
+    if digits > (total_chars * 0.08): return False
+    
+    return True
 
 def fetch_full_content(url):
     """
@@ -291,7 +125,7 @@ def fetch_full_content(url):
         try:
             content = trafilatura.extract(raw_html, include_comments=False,
                                           include_tables=False, favor_recall=True)
-            if content and len(content.strip()) > 100:
+            if is_quality_content(content):
                 return content.strip()
         except Exception:
             pass
@@ -303,7 +137,7 @@ def fetch_full_content(url):
             art = NPArticle(url)
             art.set_html(raw_html)
             art.parse()
-            if art.text and len(art.text.strip()) > 100:
+            if is_quality_content(art.text):
                 return art.text.strip()
         except Exception:
             pass
@@ -311,215 +145,19 @@ def fetch_full_content(url):
     return None
 
 def create_pdf_report(df, h_col, filter_cat=None, deep_dive=False, url_col=None):
-    import matplotlib.pyplot as plt
-    import tempfile
-    import os
-
     # Filter by category if requested
     if filter_cat and filter_cat != tr('all_cats'):
         df = df[df['Predicted Category'] == filter_cat].copy()
 
-    pdf = FPDF()
-    pdf.set_auto_page_break(auto=True, margin=15)
-    pdf.add_page()
-    
-    # --- Configuration ---
-    primary_color = (15, 23, 42)    # Slate 900
-    secondary_color = (59, 130, 246) # Blue 500
-    accent_color = (16, 185, 129)   # Emerald 500
-    text_muted = (100, 116, 139)    # Slate 500
-    bg_light = (248, 250, 252)      # Slate 50
-    effective_width = pdf.w - 2 * pdf.l_margin
-    
-    def safe_text(txt):
-        if pd.isna(txt): return ""
-        txt = str(txt)
-        replacements = {
-            "•": "-", "–": "-", "—": "-", 
-            "“": "\"", "”": "\"", "‘": "'", "’": "'",
-            "📈": "(+)", "💡": "!", "🎯": "*", "🌍": "",
-            "🎭": "", "🎓": "", "👨‍👩‍👧‍👦": "", "🍕": "",
-            "🔬": "", "🤝": "", "🏆": "", "⚖️": ""
-        }
-        for char, replacement in replacements.items():
-            txt = txt.replace(char, replacement)
-        # Attempt to clean up unicode that FPDF v1 latin-1 can't handle
-        return txt.encode('latin-1', 'ignore').decode('latin-1')
-
-    # --- Header Section ---
-    pdf.set_fill_color(15, 23, 42) # Slate 900
-    pdf.rect(0, 0, 210, 32, 'F')
-    
-    pdf.set_y(8)
-    pdf.set_font("Helvetica", 'B', 24)
-    pdf.set_text_color(255, 255, 255)
     report_title = "INTELLIGENCE BRIEFING" if not deep_dive else "DEEP DIVE AUDIT"
-    pdf.cell(effective_width, 10, report_title, new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='L')
-    
-    pdf.set_font("Helvetica", '', 9)
-    pdf.set_text_color(148, 163, 184) # Slate 400
     _meta = f"Domain: {filter_cat if filter_cat else 'Comprehensive Analysis'} | {datetime.now().strftime('%B %d, %Y')}"
-    pdf.cell(effective_width, 5, _meta, new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='L')
     
-    # Designer Accent Line
-    pdf.set_fill_color(59, 130, 246) # Blue 500
-    pdf.rect(pdf.l_margin, 26, 30, 1.2, 'F')
-
-    if not deep_dive:
-        # --- Summary Metrics Section ---
-        pdf.set_y(40)
-        counts = df['Predicted Category'].value_counts()
-        if counts.empty:
-            pdf.set_font("Helvetica", '', 12)
-            pdf.cell(effective_width, 10, "No data available for analysis.", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-            return pdf.output()
-        top_cat = counts.idxmax()
-
-        # Summary Deck (Clean White Box)
-        pdf.set_fill_color(255, 255, 255)
-        pdf.set_draw_color(226, 232, 240) # Slate 200
-        pdf.rect(pdf.l_margin, 38, effective_width, 24, 'DF')
-        
-        pdf.set_y(39)
-        pdf.set_font("Helvetica", 'B', 8)
-        pdf.set_text_color(100, 116, 139) # Slate 500
-        pdf.cell(effective_width/3, 8, " ARTICLES", 0, new_x=XPos.RIGHT, new_y=YPos.TOP, align='C')
-        pdf.cell(effective_width/3, 8, " DOMINANT", 0, new_x=XPos.RIGHT, new_y=YPos.TOP, align='C')
-        pdf.cell(effective_width/3, 8, " RELIABILITY", 0, new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='C')
-        
-        pdf.set_font("Helvetica", 'B', 15)
-        pdf.set_text_color(15, 23, 42)
-        pdf.cell(effective_width/3, 7, str(len(df)), 0, new_x=XPos.RIGHT, new_y=YPos.TOP, align='C')
-        pdf.set_text_color(59, 130, 246)
-        pdf.cell(effective_width/3, 7, safe_text(top_cat).upper(), 0, new_x=XPos.RIGHT, new_y=YPos.TOP, align='C')
-        pdf.set_text_color(16, 185, 129) # Emerald
-        pdf.cell(effective_width/3, 7, "71.4% CONF", 0, new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='C')
-        
-        pdf.ln(12)
-
-        # --- Classification Index (The Table) ---
-        pdf.set_font("Helvetica", 'B', 14)
-        pdf.set_text_color(15, 23, 42)
-        pdf.cell(effective_width, 10, "Classification Matrix", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-        pdf.ln(1)
-        
-        # Table Header
-        pdf.set_font("Helvetica", 'B', 9)
-        pdf.set_fill_color(15, 23, 42)
-        pdf.set_text_color(255, 255, 255)
-        pdf.cell(effective_width * 0.55, 11, "  ARTICLE HEADLINE", 0, new_x=XPos.RIGHT, new_y=YPos.TOP, align='L', fill=True)
-        pdf.cell(effective_width * 0.25, 11, "PREDICTED TOPIC", 0, new_x=XPos.RIGHT, new_y=YPos.TOP, align='C', fill=True)
-        pdf.cell(effective_width * 0.20, 11, "SOURCE  ", 0, new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='R', fill=True)
-        
-        # Table Rows
-        pdf.set_font("Helvetica", '', 9)
-        pdf.set_text_color(15, 23, 42)
-        for count, (i, row) in enumerate(df.iterrows()):
-            if count >= 300: break # Safety limit
-            
-            safe_h = safe_text(row[h_col])
-            if len(safe_h) > 65: safe_h = safe_h[:62] + "..."
-            
-            _url = row[url_col] if (url_col and url_col in row and not pd.isna(row[url_col]) and str(row[url_col]).strip()) else None
-            
-            fill = (count % 2 == 1)
-            pdf.set_fill_color(248, 250, 251) if fill else pdf.set_fill_color(255, 255, 255)
-            
-            # Row Start
-            pdf.cell(effective_width * 0.55, 9, f"  {safe_h}", 0, new_x=XPos.RIGHT, new_y=YPos.TOP, align='L', fill=True)
-            
-            # Topic Tag
-            pdf.set_font("Helvetica", 'B', 8)
-            pdf.cell(effective_width * 0.25, 9, safe_text(row['Predicted Category']).upper(), 0, new_x=XPos.RIGHT, new_y=YPos.TOP, align='C', fill=True)
-            
-            # Link Column
-            pdf.set_font("Helvetica", 'U', 8)
-            pdf.set_text_color(59, 130, 246)
-            pdf.cell(effective_width * 0.20, 9, "Read Story >>  ", 0, new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='R', fill=True, link=_url)
-            
-            # Reset for next row
-            pdf.set_font("Helvetica", '', 9)
-            pdf.set_text_color(15, 23, 42)
+    generator = NewsReportGenerator(title=report_title, subtitle=_meta)
+    
+    if deep_dive:
+        return generator.generate_deep_dive_report(df, h_col, fetch_full_content, url_col=url_col)
     else:
-        # DEEP DIVE REPORT - One Full Page per Article
-        pdf.set_y(60)
-        pdf.set_font("Helvetica", 'I', 11)
-        pdf.set_text_color(*text_muted)
-        pdf.multi_cell(effective_width, 6, "This report contains full article content analysis for the selected dataset. Full text is retrieved in real-time where available.", align='C')
-        
-        # Limit to 50 articles max, then pre-fetch ALL URLs in parallel
-        process_df = df.head(50)
-        
-        # --- Step 1: Parallel fetch (much faster than sequential) ---
-        from concurrent.futures import ThreadPoolExecutor, as_completed
-        url_list = []
-        for _, row in process_df.iterrows():
-            if url_col and url_col in row and not pd.isna(row[url_col]):
-                url_list.append(row[url_col])
-            else:
-                url_list.append(None)
-
-        full_texts = {}
-        with ThreadPoolExecutor(max_workers=3) as executor:
-            future_to_url = {executor.submit(fetch_full_content, u): u for u in url_list if u}
-            for future in as_completed(future_to_url):
-                u = future_to_url[future]
-                try:
-                    full_texts[u] = future.result()
-                except Exception:
-                    full_texts[u] = None
-
-        # --- Step 2: Build PDF using pre-fetched content ---
-        articles_included = 0
-        for i, row in process_df.iterrows():
-            row_url = row[url_col] if (url_col and url_col in row and not pd.isna(row[url_col])) else None
-            full_text = full_texts.get(row_url) if row_url else None
-            
-            # SKIP articles that failed to fetch or have no content
-            if not full_text or len(str(full_text).strip()) < 100:
-                continue
-
-            articles_included += 1
-            pdf.add_page()
-            
-            # Category Header
-            cat_name = row['Predicted Category']
-            pdf.set_font("Helvetica", 'B', 10)
-            pdf.set_text_color(*secondary_color)
-            pdf.cell(effective_width, 10, f"{safe_text(cat_name).upper()} INTELLIGENCE", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-            
-            # Headline
-            pdf.set_font("Helvetica", 'B', 18)
-            pdf.set_text_color(*primary_color)
-            pdf.multi_cell(effective_width, 9, safe_text(row[h_col]))
-            pdf.ln(5)
-            
-            # URL Link
-            if row_url:
-                pdf.set_font("Helvetica", 'U', 10)
-                pdf.set_text_color(*secondary_color)
-                pdf.cell(effective_width, 8, "View Original Article", link=row_url, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-                pdf.ln(5)
-                
-            pdf.set_font("Helvetica", 'B', 12)
-            pdf.set_text_color(*primary_color)
-            pdf.cell(effective_width, 10, "Full Content Analysis:", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-            pdf.set_font("Helvetica", '', 10)
-            pdf.set_text_color(51, 65, 85)
-            pdf.multi_cell(effective_width, 6, safe_text(full_text[:5000]))
-
-        if articles_included == 0:
-            pdf.ln(20)
-            pdf.set_font("Helvetica", 'I', 12)
-            pdf.set_text_color(*text_muted)
-            pdf.multi_cell(effective_width, 10, "No articles could be retrieved for detailed analysis. Please verify your source URLs and network connection.", align='C')
-
-    pdf.set_y(-20)
-    pdf.set_font("Helvetica", 'I', 8)
-    pdf.set_text_color(*text_muted)
-    pdf.cell(effective_width, 10, "News Intelligence Analysis | Generated by AI Core", 0, new_x=XPos.RIGHT, new_y=YPos.TOP, align='C')
-    
-    return pdf.output()
+        return generator.generate_summary_report(df, h_col, url_col=url_col, use_reliability=True)
 
 # --- Backend URL Configuration ---
 API_BASE = "http://localhost:8000"
@@ -749,62 +387,72 @@ if page == tr('nav_options')[0]:
             else:
                 with st.spinner(tr('analyzing')):
                     try:
-                        resp = requests.post(f"{API_BASE}/predict", json={"headline": headline, "description": description})
+                        resp = requests.post(f"{API_BASE}/predict", json={"headline": headline, "description": description}, timeout=10)
                         resp.raise_for_status()
                         data = resp.json()
-                        category = data['category']
-                        top_3_data = data['top_3']
-                        
-                        icon = ICONS.get(category, "🎭")
-                        theme = CATEGORY_THEMES.get(category, {'color': '#3b82f6', 'glow': 'rgba(255,255,255,0.2)'})
-                        
-                        with radar_container.container():
-                            st.markdown("<br>", unsafe_allow_html=True)
-                            for item in top_3_data:
-                                c_name = item['category']
-                                c_val = item['confidence']
-                                
-                                # Friendly Labels for Confidence
-                                if c_val > 0.8: label = tr('highly_confident')
-                                elif c_val > 0.5: label = tr('likely_match')
-                                else: label = tr('possible_match')
-                                
-                                st.markdown(f'<div class="radar-label">{tr_cat(c_name)} — {label}</div>', unsafe_allow_html=True)
-                                st.progress(float(c_val))
-                    except:
-                        radar_container.warning(tr('confidence_err'))
+                        # Persistent state for Single Analysis
+                        st.session_state['single_prediction'] = {
+                            "category": data['category'],
+                            "top_3": data['top_3'],
+                            "headline": headline,
+                            "description": description
+                        }
+                    except Exception as e:
+                        st.error(f"Prediction failed: {e}")
+                        st.session_state['single_prediction'] = None
 
-                    # Main Reveal
-                    st.markdown(f"""
-                        <div class="prediction-reveal" style="background: radial-gradient(circle at center, {theme['color']}33 0%, #05070a 100%); border-color: {theme['color']}66; box-shadow: 0 0 30px {theme['glow']};">
-                            <div style="font-size: 0.8rem; font-weight: 700; letter-spacing: 3px; color: rgba(255,255,255,0.7); margin-bottom: 15px;">{tr('article_about')}</div>
-                            <div style="font-size: 5rem; margin-bottom: 10px;">{icon}</div>
-                            <div style="font-size: 3.5rem; font-weight: 800; color: {theme['color']}; margin: 0;">{tr_cat(category)}</div>
-                        </div>
-                    """, unsafe_allow_html=True)
-
-                    # --- Plain English Explanation ---
-                    category_insights = get_insights(category)
-                    st.markdown(f"""
-                        <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 20px 25px; margin-top: 20px; text-align: center;">
-                            <p style="color: #e2e8f0; font-size: 1.1rem; line-height: 1.6; margin: 0;">{category_insights['Simple']}</p>
-                        </div>
-                    """, unsafe_allow_html=True)
-
-                    # --- Deeper Insights Section ---
-                    st.markdown("<br>", unsafe_allow_html=True)
-                    st.markdown(tr('more_context'))
-                    s_col1, s_col2 = st.columns(2)
+        if st.session_state.get('single_prediction'):
+            pred = st.session_state['single_prediction']
+            category = pred['category']
+            top_3_data = pred['top_3']
+            
+            icon = ICONS.get(category, "🎭")
+            theme = CATEGORY_THEMES.get(category, {'color': '#3b82f6', 'glow': 'rgba(255,255,255,0.2)'})
+            
+            with radar_container.container():
+                st.markdown("<br>", unsafe_allow_html=True)
+                for item in top_3_data:
+                    c_name = item['category']
+                    c_val = item['confidence']
                     
-                    with s_col1:
-                        with st.container(border=True):
-                            st.markdown(f"<h4 style='color: {theme['color']};'>{tr('fun_fact')}</h4>", unsafe_allow_html=True)
-                            st.write(category_insights['FunFact'])
-                            
-                    with s_col2:
-                        with st.container(border=True):
-                            st.markdown(f"<h4 style='color: {theme['color']};'>{tr('why_ai')}</h4>", unsafe_allow_html=True)
-                            st.write(category_insights['Context'])
+                    if c_val > 0.8: label = tr('highly_confident')
+                    elif c_val > 0.5: label = tr('likely_match')
+                    else: label = tr('possible_match')
+                    
+                    st.markdown(f'<div class="radar-label">{tr_cat(c_name)} — {label}</div>', unsafe_allow_html=True)
+                    st.progress(float(c_val))
+
+            # Main Reveal
+            st.markdown(f"""
+                <div class="prediction-reveal" style="background: radial-gradient(circle at center, {theme['color']}33 0%, #05070a 100%); border-color: {theme['color']}66; box-shadow: 0 0 30px {theme['glow']};">
+                    <div style="font-size: 0.8rem; font-weight: 700; letter-spacing: 3px; color: rgba(255,255,255,0.7); margin-bottom: 15px;">{tr('article_about')}</div>
+                    <div style="font-size: 5rem; margin-bottom: 10px;">{icon}</div>
+                    <div style="font-size: 3.5rem; font-weight: 800; color: {theme['color']}; margin: 0;">{tr_cat(category)}</div>
+                </div>
+            """, unsafe_allow_html=True)
+
+            # --- Plain English Explanation ---
+            category_insights = get_insights(category)
+            st.markdown(f"""
+                <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 20px 25px; margin-top: 20px; text-align: center;">
+                    <p style="color: #e2e8f0; font-size: 1.1rem; line-height: 1.6; margin: 0;">{category_insights['Simple']}</p>
+                </div>
+            """, unsafe_allow_html=True)
+
+            # --- Deeper Insights Section ---
+            st.markdown("<br>", unsafe_allow_html=True)
+            st.markdown(tr('more_context'))
+            s_col1, s_col2 = st.columns(2)
+            
+            with s_col1:
+                with st.container(border=True):
+                    st.markdown(f"<h4 style='color: {theme['color']};'>{tr('fun_fact')}</h4>", unsafe_allow_html=True)
+                    st.write(category_insights['FunFact'])
+                    
+            with s_col2:
+                with st.container(border=True):
+                    st.markdown(f"<h4 style='color: {theme['color']};'>{tr('why_ai')}</h4>", unsafe_allow_html=True)
+                    st.write(category_insights['Context'])
 
     with tab2:
         st.markdown(tr('bulk_title'))
@@ -833,6 +481,8 @@ if page == tr('nav_options')[0]:
                     st.session_state['bulk_results'] = None
                     st.session_state['bulk_filename'] = uploaded_file.name
                     st.session_state['bulk_h_col'] = None
+                    # Clear generated reports
+                    if 'bulk_pdf_bytes' in st.session_state: del st.session_state['bulk_pdf_bytes']
                 
                 # Smart Column Auto-detection
                 cols = df.columns.tolist()
@@ -857,22 +507,54 @@ if page == tr('nav_options')[0]:
                     u_col = st.selectbox("URL Column (Optional)", ["None"] + cols, index=cols.index(detected_u) + 1 if detected_u else 0)
                 
                 if st.button(tr('classify_all'), type="primary"):
-                    with st.spinner(tr('processing_bulk')):
+                    with st.status(tr('processing_bulk')) as status:
                         # 1. Collect texts for API
                         df['combined_text'] = (df[h_col].fillna('') + " " + df[d_col].fillna(''))
+                        texts = df['combined_text'].tolist()
                         
-                        # 2. Call Backend API
-                        try:
-                            resp = requests.post(f"{API_BASE}/bulk-predict", json={"texts": df['combined_text'].tolist()})
-                            resp.raise_for_status()
-                            df['Predicted Category'] = resp.json()['predictions']
+                        # 2. Parallel Chunked Processing
+                        CHUNK_SIZE = 50
+                        chunks = [texts[i:i + CHUNK_SIZE] for i in range(0, len(texts), CHUNK_SIZE)]
+                        results = [None] * len(texts)
+                        
+                        progress_bar = st.progress(0.0)
+                        
+                        def process_chunk(chunk_idx, chunk_data):
+                            try:
+                                resp = requests.post(f"{API_BASE}/bulk-predict", json={"texts": chunk_data}, timeout=30)
+                                resp.raise_for_status()
+                                return chunk_idx, resp.json()['predictions']
+                            except Exception as e:
+                                return chunk_idx, [f"Error: {str(e)}"] * len(chunk_data)
+
+                        # Use ThreadPoolExecutor to prevent blocking the main heartbeat
+                        with ThreadPoolExecutor(max_workers=4) as executor:
+                            future_to_chunk = {executor.submit(process_chunk, i, chunk): i for i, chunk in enumerate(chunks)}
+                            completed = 0
+                            total_chunks = len(chunks)
                             
-                            # Store in session state for persistence
-                            st.session_state['bulk_results'] = df
-                            st.session_state['bulk_h_col'] = h_col
-                            st.session_state['bulk_u_col'] = u_col if u_col != "None" else None
-                        except Exception as e:
-                            st.error(f"Bulk analysis failed: {e}")
+                            for future in as_completed(future_to_chunk):
+                                try:
+                                    chunk_idx, predictions = future.result()
+                                    start_idx = chunk_idx * CHUNK_SIZE
+                                    results[start_idx:start_idx + len(predictions)] = predictions
+                                    completed += 1
+                                    
+                                    # Update UI elements from the main loop
+                                    progress_bar.progress(completed / total_chunks)
+                                    status.update(label=f"Analysis in progress... ({completed}/{total_chunks} batches)")
+                                except Exception as e:
+                                    st.error(f"Batch processing error: {e}")
+
+                        df['Predicted Category'] = results
+                        status.update(label="✅ Analysis Complete!", state="complete")
+                        
+                        # Store in session state for persistence
+                        st.session_state['bulk_results'] = df
+                        st.session_state['bulk_h_col'] = h_col
+                        st.session_state['bulk_u_col'] = u_col if u_col != "None" else None
+                        # Clear old PDFs as data has changed
+                        if 'bulk_pdf_bytes' in st.session_state: del st.session_state['bulk_pdf_bytes']
 
                 if st.session_state.get('bulk_results') is not None:
                     res_df = st.session_state['bulk_results']
@@ -945,15 +627,22 @@ if page == tr('nav_options')[0]:
                     
                     with st.container(border=True):
                         e_col1, e_col2 = st.columns(2)
-                        with e_col1:
-                            # Get unique categories and sort them
-                            raw_cats = res_df['Predicted Category'].unique().tolist()
-                            available_cats = [tr('all_cats')] + sorted([str(c) for c in raw_cats])
-                            report_filter = st.selectbox(tr('filter_report_cat'), available_cats, key='bulk_filter_sel')
+                        # Invalidate PDF if report filter or deep dive changes
+                        raw_cats = res_df['Predicted Category'].unique().tolist()
+                        available_cats = [tr('all_cats')] + sorted([str(c) for c in raw_cats])
+                        report_filter = st.selectbox(tr('filter_report_cat'), available_cats, key='bulk_filter_sel')
+                        
+                        # Check if filter changed since last generation
+                        if st.session_state.get('last_bulk_pdf_filter') != report_filter:
+                            if 'bulk_pdf_bytes' in st.session_state: del st.session_state['bulk_pdf_bytes']
+                            if 'bulk_deep_df' in st.session_state: del st.session_state['bulk_deep_df']
                             
                         with e_col2:
                             u_col_final = st.session_state.get('bulk_u_col')
                             is_deep = st.checkbox(tr('include_full_text'), disabled=(u_col_final is None), key='bulk_deep_chk')
+                            if st.session_state.get('last_bulk_pdf_deep') != is_deep:
+                                if 'bulk_pdf_bytes' in st.session_state: del st.session_state['bulk_pdf_bytes']
+                                if 'bulk_deep_df' in st.session_state: del st.session_state['bulk_deep_df']
                             if u_col_final is None:
                                 st.caption(tr('no_url_warn'))
 
@@ -961,7 +650,7 @@ if page == tr('nav_options')[0]:
                         
                         # Use a trigger to generate the PDF
                         if st.button("🛠️ " + tr('btn_pdf'), width="stretch", key='bulk_gen_pdf_btn'):
-                            # Filter preview
+                            # Preview filter for logging/depth
                             f_df = res_df.copy()
                             if report_filter != tr('all_cats'):
                                 f_df = f_df[f_df['Predicted Category'] == report_filter]
@@ -971,32 +660,51 @@ if page == tr('nav_options')[0]:
                                 limit_info = " (Limited to first 50 articles)"
                                 
                             with st.spinner(f"{tr('fetching_articles')}{limit_info}" if is_deep else "Generating Report..."):
-                                report_bytes = create_pdf_report(res_df, res_h_col, filter_cat=report_filter, deep_dive=is_deep, url_col=u_col_final)
-                                st.session_state['last_pdf_bytes'] = bytes(report_bytes)
-                                st.session_state['last_pdf_name'] = f"Report_{report_filter}_{datetime.now().strftime('%H%M%S')}.pdf"
+                                report_bytes, filtered_df = create_pdf_report(res_df, res_h_col, filter_cat=report_filter, deep_dive=is_deep, url_col=u_col_final)
+                                st.session_state['bulk_pdf_bytes'] = bytes(report_bytes)
+                                st.session_state['bulk_pdf_name'] = f"Report_{report_filter}_{datetime.now().strftime('%H%M%S')}.pdf"
+                                st.session_state['last_bulk_pdf_filter'] = report_filter
+                                st.session_state['last_bulk_pdf_deep'] = is_deep
+                                # Store the filtered DF for CSV export if deep dive was used
+                                if is_deep:
+                                    st.session_state['bulk_deep_df'] = filtered_df
+                                else:
+                                    if 'bulk_deep_df' in st.session_state: del st.session_state['bulk_deep_df']
 
-                        if 'last_pdf_bytes' in st.session_state:
+                        if 'bulk_pdf_bytes' in st.session_state:
                             st.download_button(
                                 "✅ " + tr('btn_pdf'),
-                                st.session_state['last_pdf_bytes'],
-                                st.session_state['last_pdf_name'],
+                                st.session_state['bulk_pdf_bytes'],
+                                st.session_state['bulk_pdf_name'],
                                 "application/pdf",
                                 width="stretch",
                                 key='bulk_dl_pdf_btn'
                             )
                             
-                        # CSV Export (Always available and fast)
+                        # CSV Export
                         csv_filter_df = res_df.copy()
                         if report_filter != tr('all_cats'):
                             csv_filter_df = csv_filter_df[csv_filter_df['Predicted Category'] == report_filter]
                         
+                        # Use filtered deep dive results if available and requested
+                        is_deep_active = st.session_state.get('bulk_deep_chk')
+                        if is_deep_active and st.session_state.get('bulk_deep_df') is not None:
+                            csv_filter_df = st.session_state['bulk_deep_df']
+                        elif is_deep_active:
+                            # If deep dive is checked but NOT yet generated, we should warn or limit to first 50
+                            # but the user explicitly asked to "keep articles that are fetched".
+                            # This implies they must click Generate first, or we do it here.
+                            # To keep it fast, we'll just show a message if they try to download without generating.
+                            pass
+
                         st.download_button(
                             tr('btn_csv'),
                             csv_filter_df.to_csv(index=False).encode('utf-8'),
                             f"Data_{report_filter}_{datetime.now().strftime('%Y%m%d')}.csv",
                             "text/csv",
                             key='bulk-csv-download-btn',
-                            width="stretch"
+                            width="stretch",
+                            help=tr('btn_csv_help') if is_deep_active and st.session_state.get('bulk_deep_df') is None else None
                         )
             except Exception as e:
                 import traceback
@@ -1049,16 +757,18 @@ if page == tr('nav_options')[0]:
             
             with st.spinner(tr('fetching_msg').format(news_source)):
                 try:
-                    response = requests.get(api_url, params=params)
+                    response = requests.get(api_url, params=params, timeout=15)
                     response.raise_for_status()
                     data = response.json()
-                    st.session_state['last_news_results'] = data.get("articles", [])
+                    st.session_state['live_results'] = data.get("articles", [])
+                    # Invalidate PDF as data has changed
+                    if 'live_pdf_bytes' in st.session_state: del st.session_state['live_pdf_bytes']
                 except Exception as e:
                     st.error(f"Failed to fetch news: {str(e)}")
 
         # Display Logic (Works with session state to prevent lost data on UI interaction)
-        if 'last_news_results' in st.session_state:
-            results = st.session_state['last_news_results']
+        if 'live_results' in st.session_state:
+            results = st.session_state['live_results']
             
             # Apply Filter
             if user_interests:
@@ -1124,120 +834,38 @@ if page == tr('nav_options')[0]:
                 st.markdown("<br>", unsafe_allow_html=True)
                 st.markdown(tr('export_work'))
                 with st.container(border=True):
+                    # Invalidate PDF if query or interests change
+                    if st.session_state.get('last_live_pdf_query') != query or st.session_state.get('last_live_pdf_interests') != user_interests:
+                        if 'live_pdf_bytes' in st.session_state: del st.session_state['live_pdf_bytes']
+
                     if st.button("🛠️ " + tr('btn_pdf'), key="live-gen-pdf", width="stretch"):
                         with st.spinner("Generating Report..."):
-                            # Build a simple PDF from the live results
-                            _pdf = FPDF()
-                            _pdf.set_auto_page_break(auto=True, margin=15)
-                            _pdf.add_page()
-                            _ew = _pdf.w - 2 * _pdf.l_margin
-                            def _safe(t):
-                                return str(t).encode('latin-1', 'ignore').decode('latin-1')
-
-                            # Header
-                            _pdf.set_fill_color(15, 23, 42) # Slate 900
-                            _pdf.rect(0, 0, 210, 32, 'F')
-                            _pdf.set_y(8)
-                            _pdf.set_font("Helvetica", 'B', 24)
-                            _pdf.set_text_color(255, 255, 255)
-                            _pdf.cell(_ew, 10, "INTELLIGENCE REPORT", ln=True, align='L')
-                            _pdf.set_font("Helvetica", '', 9)
-                            _pdf.set_text_color(148, 163, 184) # Slate 400
+                            # Map results to a dataframe structure expected by the generator
+                            live_df = pd.DataFrame([{
+                                "Headline": a.get("headline", ""),
+                                "Predicted Category": a.get("category", ""),
+                                "URL": a.get("url", ""),
+                            } for a in filtered_results])
+                            
                             _meta = f"Signal: {query or 'latest'} | {news_source} | {datetime.now().strftime('%B %d, %Y')}"
-                            _pdf.cell(_ew, 5, _meta, ln=True, align='L')
+                            generator = NewsReportGenerator(title="INTELLIGENCE REPORT", subtitle=_meta)
                             
-                            # Designer Accent Line
-                            _pdf.set_fill_color(59, 130, 246) # Blue 500
-                            _pdf.rect(_pdf.l_margin, 26, 30, 1.2, 'F')
-
-                            # Summary metrics card (Move up)
-                            cats = {}
-                            for a in filtered_results:
-                                c = a.get("category", "General")
-                                cats[c] = cats.get(c, 0) + 1
-                            top_cat = max(cats, key=cats.get) if cats else "N/A"
-
-                            _pdf.set_y(40)
-                            _pdf.set_fill_color(255, 255, 255)
-                            _pdf.set_draw_color(226, 232, 240) # Slate 200
-                            _pdf.rect(_pdf.l_margin, 38, _ew, 24, 'DF')
+                            final_pdf, _ = generator.generate_summary_report(live_df, "Headline", url_col="URL")
                             
-                            _pdf.set_y(39)
-                            _pdf.set_font("Helvetica", 'B', 8)
-                            _pdf.set_text_color(100, 116, 139) # Slate 500
-                            _pdf.cell(_ew/3, 8, " ARTICLES", 0, 0, 'C')
-                            _pdf.cell(_ew/3, 8, " DOMINANT", 0, 0, 'C')
-                            _pdf.cell(_ew/3, 8, " TOPICS", 0, 1, 'C')
-                            
-                            _pdf.set_font("Helvetica", 'B', 15)
-                            _pdf.set_text_color(15, 23, 42)
-                            _pdf.cell(_ew/3, 7, str(len(filtered_results)), 0, 0, 'C')
-                            _pdf.set_text_color(16, 185, 129) # Emerald
-                            _pdf.cell(_ew/3, 7, _safe(top_cat).upper(), 0, 0, 'C')
-                            _pdf.set_text_color(59, 130, 246)
-                            _pdf.cell(_ew/3, 7, str(len(cats)), 0, 1, 'C')
-
-                            # Article index (No add_page - start on page 1)
-                            _pdf.ln(12)
-                            _pdf.set_font("Helvetica", 'B', 13)
-                            _pdf.set_text_color(15, 23, 42)
-                            _pdf.cell(_ew, 10, "Classification Matrix", ln=True)
-                            _pdf.ln(1)
-                            
-                            # Table Header
-                            _pdf.set_font("Helvetica", 'B', 9)
-                            _pdf.set_fill_color(15, 23, 42)
-                            _pdf.set_text_color(255, 255, 255)
-                            _pdf.cell(_ew * 0.55, 10, "  ARTICLE HEADLINE", 0, 0, 'L', True)
-                            _pdf.cell(_ew * 0.25, 10, "PREDICTED TOPIC", 0, 0, 'C', True)
-                            _pdf.cell(_ew * 0.20, 10, "SOURCE  ", 0, 1, 'R', True)
-                            
-                            _pdf.set_font("Helvetica", '', 9)
-                            _pdf.set_text_color(15, 23, 42)
-                            for _idx, _art in enumerate(filtered_results):
-                                if _idx >= 300: break # Increased limit
-                                _h = _safe(_art.get("headline", "Untitled"))
-                                if len(_h) > 65: _h = _h[:62] + "..."
-                                _cat_t = _safe(_art.get("category", "")).upper()
-                                _url = _art.get("url") if _art.get("url") and str(_art.get("url")).strip() != "#" else None
-                                
-                                _fill = (_idx % 2 == 1)
-                                _pdf.set_fill_color(248, 250, 251) if _fill else _pdf.set_fill_color(255, 255, 255)
-                                
-                                # Row Start
-                                _pdf.cell(_ew * 0.55, 9, f"  {_h}", 0, 0, 'L', True)
-                                
-                                # Topic Tag
-                                _pdf.set_font("Helvetica", 'B', 8)
-                                _pdf.cell(_ew * 0.25, 9, _cat_t, 0, 0, 'C', True)
-                                
-                                # Link Column
-                                _pdf.set_font("Helvetica", 'U', 8)
-                                _pdf.set_text_color(59, 130, 246)
-                                _pdf.cell(_ew * 0.20, 9, "Read Story >>  ", 0, 1, 'R', True, link=_url)
-                                
-                                # Reset for next row
-                                _pdf.set_font("Helvetica", '', 9)
-                                _pdf.set_text_color(15, 23, 42)
-
-                            _pdf.set_y(-20)
-                            _pdf.set_font("Helvetica", 'I', 8)
-                            _pdf.set_text_color(100, 116, 139)
-                            _pdf.cell(_ew, 10, "News Intelligence Analysis | Generated by AI Core", 0, 0, 'C')
-
-                            final_pdf = _pdf.output()
                             st.session_state['live_pdf_bytes'] = bytes(final_pdf)
                             st.session_state['live_pdf_name'] = f"LiveNews_{query or 'latest'}_{datetime.now().strftime('%H%M%S')}.pdf"
+                            st.session_state['last_live_pdf_query'] = query
+                            st.session_state['last_live_pdf_interests'] = user_interests
 
                 # --- Always Available Export Options ---
-                if 'last_news_results' in st.session_state:
+                if 'live_results' in st.session_state:
                     if 'live_pdf_bytes' in st.session_state:
                         st.download_button(
                             "✅ " + tr('btn_pdf'),
                             st.session_state['live_pdf_bytes'],
                             st.session_state['live_pdf_name'],
                             "application/pdf",
-                            key='live-dl-pdf-btn',
+                            key='live-dl_pdf_btn',
                             width="stretch"
                         )
 
