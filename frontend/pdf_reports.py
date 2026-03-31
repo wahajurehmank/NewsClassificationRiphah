@@ -78,20 +78,27 @@ class NewsReportGenerator:
         if pd.isna(txt): return ""
         txt = str(txt)
         
-        # 1. Normalize Whitespace (Collapse empty lines)
         import re
+        has_urdu = self.has_urdu_font and bool(re.search(r'[\u0600-\u06FF]', txt))
+        
+        # 1. Normalize Whitespace (Collapse empty lines)
         txt = re.sub(r'\n{3,}', '\n\n', txt)
         # txt = re.sub(r' +', ' ', txt) # Optional: collapse spaces
         
+        # 2. Critical symbol replacements for FPDF Helvetica (Latin-1)
         replacements = {
-            "•": "-", "–": "-", "—": "-", 
+            "●": "-", "•": "-", "–": "-", "—": "-", 
             "“": "\"", "”": "\"", "‘": "'", "’": "'",
+            "…": "...", "¶": " ", "§": " ",
         }
         for char, replacement in replacements.items():
             txt = txt.replace(char, replacement)
             
-        # 2. Final clean-up of non-standard chars that FPDF Helvetica lacks
-        # (Only if not using UrduFont)
+        # 3. Robust Latin-1 safe fallback for English Helvetica font
+        if not has_urdu:
+            # Replaces any characters Helvetica (Latin-1) can't handle with '?'
+            txt = txt.encode('latin-1', 'replace').decode('latin-1')
+            
         return txt
 
     def _add_header(self):
@@ -103,7 +110,9 @@ class NewsReportGenerator:
         self.pdf.set_text_color(*self.HEADER_TEXT_COLOR)
         
         # If title has Urdu, use UrduFont
-        title_font = "UrduFont" if self.has_urdu_font and any(ord(c) > 127 for c in self.title) else "Helvetica"
+        import re
+        has_urdu = self.has_urdu_font and bool(re.search(r'[\u0600-\u06FF]', self.title))
+        title_font = "UrduFont" if has_urdu else "Helvetica"
         if title_font == "UrduFont": self.pdf.set_font(title_font, "", 20)
         
         self.pdf.cell(self.effective_width, 10, self.title, new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='L')
@@ -112,7 +121,8 @@ class NewsReportGenerator:
         self.pdf.set_text_color(*self.HEADER_SUB_COLOR)
         
         # If subtitle has Urdu, use UrduFont
-        sub_font = "UrduFont" if self.has_urdu_font and any(ord(c) > 127 for c in self.subtitle) else "Helvetica"
+        has_urdu_sub = self.has_urdu_font and bool(re.search(r'[\u0600-\u06FF]', self.subtitle))
+        sub_font = "UrduFont" if has_urdu_sub else "Helvetica"
         if sub_font == "UrduFont": self.pdf.set_font(sub_font, "", 9)
         
         self.pdf.cell(self.effective_width, 5, self.subtitle, new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='L')
@@ -144,7 +154,9 @@ class NewsReportGenerator:
         
         # Use Urdu font for category if it's Urdu
         cat_text = self._safe_text(top_cat).upper()
-        cat_font = "UrduFont" if self.has_urdu_font and any(ord(c) > 127 for c in cat_text) else "Helvetica"
+        import re
+        has_urdu_cat = self.has_urdu_font and bool(re.search(r'[\u0600-\u06FF]', cat_text))
+        cat_font = "UrduFont" if has_urdu_cat else "Helvetica"
         if cat_font == "UrduFont": self.pdf.set_font(cat_font, "", 12)
         else: self.pdf.set_font("Helvetica", "B", 13)
         
@@ -197,14 +209,17 @@ class NewsReportGenerator:
                 if len(safe_h) > 75: safe_h = safe_h[:72] + "..."
                 
                 # HEADLINE: Set font based on content
-                h_font = "UrduFont" if self.has_urdu_font and any(ord(c) > 127 for c in safe_h) else "Helvetica"
+                import re
+                has_urdu_h = self.has_urdu_font and bool(re.search(r'[\u0600-\u06FF]', safe_h))
+                h_font = "UrduFont" if has_urdu_h else "Helvetica"
                 self.pdf.set_font(h_font, "" if h_font == "UrduFont" else "", 9)
                 self.pdf.set_text_color(*self.PRIMARY_COLOR)
                 data_row.cell(f"  {safe_h}")
                 
                 # TOPIC: Set font based on content
                 topic_text = self._safe_text(row['Predicted Category']).upper()
-                t_font = "UrduFont" if self.has_urdu_font and any(ord(c) > 127 for c in topic_text) else "Helvetica"
+                has_urdu_t = self.has_urdu_font and bool(re.search(r'[\u0600-\u06FF]', topic_text))
+                t_font = "UrduFont" if has_urdu_t else "Helvetica"
                 self.pdf.set_font(t_font, "B" if t_font == "Helvetica" else "", 8)
                 data_row.cell(topic_text)
                 
@@ -283,13 +298,16 @@ class NewsReportGenerator:
             
             # Article Details Layout
             cat_text = self._safe_text(row['Predicted Category']).upper()
-            cat_font = "UrduFont" if self.has_urdu_font and any(ord(c) > 127 for c in cat_text) else "Helvetica"
+            import re
+            has_urdu_c = self.has_urdu_font and bool(re.search(r'[\u0600-\u06FF]', cat_text))
+            cat_font = "UrduFont" if has_urdu_c else "Helvetica"
             self.pdf.set_font(cat_font, "B" if cat_font == "Helvetica" else "", 10)
             self.pdf.set_text_color(*self.SECONDARY_COLOR)
             self.pdf.cell(self.effective_width, 10, f"{cat_text} INTELLIGENCE", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
             
             h_text = self._safe_text(row[h_col])
-            h_font = "UrduFont" if self.has_urdu_font and any(ord(c) > 127 for c in h_text) else "Helvetica"
+            has_urdu_h2 = self.has_urdu_font and bool(re.search(r'[\u0600-\u06FF]', h_text))
+            h_font = "UrduFont" if has_urdu_h2 else "Helvetica"
             self.pdf.set_font(h_font, "B" if h_font == "Helvetica" else "", 18)
             self.pdf.set_text_color(*self.PRIMARY_COLOR)
             self.pdf.multi_cell(self.effective_width, 9, h_text)
@@ -306,7 +324,8 @@ class NewsReportGenerator:
             self.pdf.cell(self.effective_width, 10, "Full Content Analysis:", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
             
             content_text = self._safe_text(full_text[:5000])
-            c_font = "UrduFont" if self.has_urdu_font and any(ord(c) > 127 for c in content_text) else "Helvetica"
+            has_urdu_content = self.has_urdu_font and bool(re.search(r'[\u0600-\u06FF]', content_text))
+            c_font = "UrduFont" if has_urdu_content else "Helvetica"
             self.pdf.set_font(c_font, "" if c_font == "UrduFont" else "", 10)
             self.pdf.set_text_color(51, 65, 85)
             self.pdf.multi_cell(self.effective_width, 6, content_text)
