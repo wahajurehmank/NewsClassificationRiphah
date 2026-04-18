@@ -1,2 +1,0 @@
-- name: GitHub Repos' Status
-  uses: DaoCloud-OpenSource/github-repos-stats@v0.0.5
